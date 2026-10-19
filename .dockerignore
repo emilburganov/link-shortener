@@ -1,0 +1,6 @@
+.git
+.env
+.idea
+.vscode
+.DS_Store
+docker-compose.yml
