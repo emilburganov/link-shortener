@@ -26,6 +26,10 @@ func (f *fakeRepo) Insert(_ context.Context, code, _ string, _ *int64) error {
 	return err
 }
 
+func (f *fakeRepo) Visit(context.Context, string) (string, error) {
+	return "", ErrNotFound
+}
+
 func TestServiceCreate(t *testing.T) {
 	errDB := errors.New("db down")
 	zero := int64(0)

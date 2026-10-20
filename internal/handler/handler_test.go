@@ -24,6 +24,11 @@ type fakeService struct {
 	calls    int
 	gotURL   string
 	gotLimit *int64
+
+	visitURL   string
+	visitErr   error
+	visitCalls int
+	gotCode    string
 }
 
 func (f *fakeService) Create(_ context.Context, rawURL string, maxClicks *int64) (string, error) {
@@ -169,4 +174,67 @@ func equalLimit(a, b *int64) bool {
 	}
 
 	return *a == *b
+}
+
+func (f *fakeService) Visit(_ context.Context, code string) (string, error) {
+	f.visitCalls++
+	f.gotCode = code
+
+	return f.visitURL, f.visitErr
+}
+
+func TestRedirect(t *testing.T) {
+	tests := []struct {
+		name         string
+		svc          *fakeService
+		wantStatus   int
+		wantLocation string
+		wantError    string
+	}{
+		{
+			name:         "redirects to the original url",
+			svc:          &fakeService{visitURL: "https://example.com/page?x=1"},
+			wantStatus:   http.StatusFound,
+			wantLocation: "https://example.com/page?x=1",
+		},
+		{
+			name:       "unknown, expired or exhausted link",
+			svc:        &fakeService{visitErr: link.ErrNotFound},
+			wantStatus: http.StatusNotFound,
+			wantError:  "link not found",
+		},
+		{
+			name:       "unexpected error is not leaked",
+			svc:        &fakeService{visitErr: errors.New("connection to 10.0.0.5 refused")},
+			wantStatus: http.StatusInternalServerError,
+			wantError:  "internal error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			router := New(tt.svc).Routes()
+			req := httptest.NewRequest(http.MethodGet, "/abc1234", nil)
+			rec := httptest.NewRecorder()
+
+			router.ServeHTTP(rec, req)
+
+			if rec.Code != tt.wantStatus {
+				t.Errorf("status = %d, want %d", rec.Code, tt.wantStatus)
+			}
+
+			if got := rec.Header().Get("Location"); got != tt.wantLocation {
+				t.Errorf("Location = %q, want %q", got, tt.wantLocation)
+			}
+
+			if tt.wantError != "" && !strings.Contains(rec.Body.String(), tt.wantError) {
+				t.Errorf("body = %q, want it to contain %q", rec.Body.String(), tt.wantError)
+			}
+
+			if tt.svc.visitCalls != 1 || tt.svc.gotCode != "abc1234" {
+				t.Errorf("Visit called %d times with %q, want once with abc1234",
+					tt.svc.visitCalls, tt.svc.gotCode)
+			}
+		})
+	}
 }

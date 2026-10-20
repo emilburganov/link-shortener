@@ -14,6 +14,7 @@ const maxBodyBytes = 8 << 10
 
 type LinkService interface {
 	Create(ctx context.Context, rawURL string, maxClicks *int64) (string, error)
+	Visit(ctx context.Context, code string) (string, error)
 }
 
 type Handler struct {
@@ -27,6 +28,7 @@ func New(links LinkService) *Handler {
 func (h *Handler) Routes() *gin.Engine {
 	router := gin.Default()
 	router.POST("/links", h.createLink)
+	router.GET("/:code", h.redirect)
 
 	return router
 }
@@ -66,5 +68,19 @@ func (h *Handler) createLink(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, errorResponse{Error: "internal error"})
 	default:
 		c.JSON(http.StatusCreated, createLinkResponse{Code: code})
+	}
+}
+
+func (h *Handler) redirect(c *gin.Context) {
+	target, err := h.links.Visit(c.Request.Context(), c.Param("code"))
+
+	switch {
+	case errors.Is(err, link.ErrNotFound):
+		c.JSON(http.StatusNotFound, errorResponse{Error: "link not found"})
+	case err != nil:
+		_ = c.Error(err)
+		c.JSON(http.StatusInternalServerError, errorResponse{Error: "internal error"})
+	default:
+		c.Redirect(http.StatusFound, target)
 	}
 }

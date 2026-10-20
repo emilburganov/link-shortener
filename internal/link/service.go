@@ -14,10 +14,12 @@ const (
 var (
 	ErrCodeTaken        = errors.New("code already taken")
 	ErrInvalidMaxClicks = errors.New("max_clicks must be positive")
+	ErrNotFound         = errors.New("link not found")
 )
 
 type Repository interface {
 	Insert(ctx context.Context, code, url string, maxClicks *int64) error
+	Visit(ctx context.Context, code string) (string, error)
 }
 
 type Service struct {
@@ -60,4 +62,8 @@ func (s *Service) Create(ctx context.Context, rawURL string, maxClicks *int64) (
 	return "", fmt.Errorf(
 		"no unique code after %d attempts: %w", maxInsertAttempts, ErrCodeTaken,
 	)
+}
+
+func (s *Service) Visit(ctx context.Context, code string) (string, error) {
+	return s.repo.Visit(ctx, code)
 }

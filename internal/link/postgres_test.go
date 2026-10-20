@@ -4,7 +4,10 @@ import (
 	"context"
 	"errors"
 	"os"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -80,10 +83,171 @@ func TestPostgresRepositoryInsert(t *testing.T) {
 	})
 
 	t.Run("other constraint violation is not ErrCodeTaken", func(t *testing.T) {
-		err := repo.Insert(ctx, code+"x", "", nil) // пустой url нарушает CHECK
+		err := repo.Insert(ctx, code+"x", "", nil)
 
 		if err == nil || errors.Is(err, ErrCodeTaken) {
 			t.Errorf("Insert() error = %v, want a check-constraint error", err)
 		}
 	})
+}
+
+func seedLink(t *testing.T, pool *pgxpool.Pool, maxClicks *int64, expiresAt *time.Time) string {
+	t.Helper()
+
+	code, err := GenerateCode(12)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = pool.Exec(
+		context.Background(),
+		"INSERT INTO links (code, url, max_clicks, expires_at) VALUES ($1, $2, $3, $4)",
+		code, "https://example.com/target", maxClicks, expiresAt,
+	)
+
+	if err != nil {
+		t.Fatalf("seed link: %v", err)
+	}
+
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), "DELETE FROM links WHERE code = $1", code)
+	})
+
+	return code
+}
+
+func clicksOf(t *testing.T, pool *pgxpool.Pool, code string) int64 {
+	t.Helper()
+
+	var clicks int64
+	row := pool.QueryRow(context.Background(), "SELECT clicks FROM links WHERE code = $1", code)
+
+	if err := row.Scan(&clicks); err != nil {
+		t.Fatalf("select clicks: %v", err)
+	}
+
+	return clicks
+}
+
+func TestPostgresRepositoryVisit(t *testing.T) {
+	ctx := context.Background()
+	pool := newTestPool(t)
+	repo := NewPostgresRepository(pool)
+
+	two := int64(2)
+	past := time.Now().Add(-time.Hour)
+	future := time.Now().Add(time.Hour)
+
+	tests := []struct {
+		name        string
+		maxClicks   *int64
+		expiresAt   *time.Time
+		visits      int
+		wantVisited int
+	}{
+		{
+			name:        "unlimited link",
+			visits:      3,
+			wantVisited: 3,
+		},
+		{
+			name:        "stops at the click limit",
+			maxClicks:   &two,
+			visits:      5,
+			wantVisited: 2,
+		},
+		{
+			name:        "expired link",
+			expiresAt:   &past,
+			visits:      1,
+			wantVisited: 0,
+		},
+		{
+			name:        "not yet expired link",
+			expiresAt:   &future,
+			visits:      1,
+			wantVisited: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			code := seedLink(t, pool, tt.maxClicks, tt.expiresAt)
+			visited := 0
+
+			for range tt.visits {
+				url, err := repo.Visit(ctx, code)
+
+				if errors.Is(err, ErrNotFound) {
+					continue
+				}
+
+				if err != nil {
+					t.Fatalf("Visit() error: %v", err)
+				}
+
+				if url != "https://example.com/target" {
+					t.Errorf("Visit() url = %q", url)
+				}
+
+				visited++
+			}
+
+			if visited != tt.wantVisited {
+				t.Errorf("successful visits = %d, want %d", visited, tt.wantVisited)
+			}
+
+			if got := clicksOf(t, pool, code); got != int64(tt.wantVisited) {
+				t.Errorf("clicks in db = %d, want %d", got, tt.wantVisited)
+			}
+		})
+	}
+
+	t.Run("unknown code", func(t *testing.T) {
+		_, err := repo.Visit(ctx, "doesnotexist")
+
+		if !errors.Is(err, ErrNotFound) {
+			t.Errorf("Visit() error = %v, want ErrNotFound", err)
+		}
+	})
+}
+
+func TestPostgresRepositoryVisitConcurrent(t *testing.T) {
+	const (
+		limit   = 5
+		workers = 30
+	)
+
+	pool := newTestPool(t)
+	repo := NewPostgresRepository(pool)
+	maxClicks := int64(limit)
+	code := seedLink(t, pool, &maxClicks, nil)
+
+	var (
+		wg      sync.WaitGroup
+		visited atomic.Int32
+	)
+
+	for range workers {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			if _, err := repo.Visit(context.Background(), code); err == nil {
+				visited.Add(1)
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	if got := visited.Load(); got != limit {
+		t.Errorf("successful visits = %d, want exactly %d", got, limit)
+	}
+
+	if got := clicksOf(t, pool, code); got != limit {
+		t.Errorf("clicks in db = %d, want %d", got, limit)
+	}
 }
