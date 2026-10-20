@@ -15,6 +15,7 @@ var (
 	ErrCodeTaken        = errors.New("code already taken")
 	ErrInvalidMaxClicks = errors.New("max_clicks must be positive")
 	ErrNotFound         = errors.New("link not found")
+	ErrGone             = errors.New("link is no longer available")
 )
 
 type Repository interface {

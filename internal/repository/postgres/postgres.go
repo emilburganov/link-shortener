@@ -29,6 +29,8 @@ const visitQuery = `
 		AND (max_clicks IS NULL OR clicks < max_clicks)
 	RETURNING url`
 
+const existsQuery = `SELECT EXISTS (SELECT 1 FROM links WHERE code = $1)`
+
 type Repository struct {
 	pool *pgxpool.Pool
 }
@@ -58,7 +60,7 @@ func (r *Repository) Visit(ctx context.Context, code string) (string, error) {
 	err := r.pool.QueryRow(ctx, visitQuery, code).Scan(&url)
 
 	if errors.Is(err, pgx.ErrNoRows) {
-		return "", link.ErrNotFound
+		return "", r.unavailableReason(ctx, code)
 	}
 
 	if err != nil {
@@ -66,4 +68,20 @@ func (r *Repository) Visit(ctx context.Context, code string) (string, error) {
 	}
 
 	return url, nil
+}
+
+func (r *Repository) unavailableReason(ctx context.Context, code string) error {
+	var exists bool
+
+	err := r.pool.QueryRow(ctx, existsQuery, code).Scan(&exists)
+
+	if err != nil {
+		return fmt.Errorf("check link exists: %w", err)
+	}
+
+	if exists {
+		return link.ErrGone
+	}
+
+	return link.ErrNotFound
 }

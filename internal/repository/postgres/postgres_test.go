@@ -147,6 +147,7 @@ func TestRepositoryVisit(t *testing.T) {
 		expiresAt   *time.Time
 		visits      int
 		wantVisited int
+		wantErr     error
 	}{
 		{
 			name:        "unlimited link",
@@ -158,12 +159,14 @@ func TestRepositoryVisit(t *testing.T) {
 			maxClicks:   &two,
 			visits:      5,
 			wantVisited: 2,
+			wantErr:     link.ErrGone,
 		},
 		{
 			name:        "expired link",
 			expiresAt:   &past,
 			visits:      1,
 			wantVisited: 0,
+			wantErr:     link.ErrGone,
 		},
 		{
 			name:        "not yet expired link",
@@ -181,12 +184,12 @@ func TestRepositoryVisit(t *testing.T) {
 			for range tt.visits {
 				url, err := repo.Visit(ctx, code)
 
-				if errors.Is(err, link.ErrNotFound) {
+				if err != nil && tt.wantErr != nil && errors.Is(err, tt.wantErr) {
 					continue
 				}
 
 				if err != nil {
-					t.Fatalf("Visit() error: %v", err)
+					t.Fatalf("Visit() error = %v, want %v", err, tt.wantErr)
 				}
 
 				if url != "https://example.com/target" {
@@ -227,8 +230,9 @@ func TestRepositoryVisitConcurrent(t *testing.T) {
 	code := seedLink(t, pool, &maxClicks, nil)
 
 	var (
-		wg      sync.WaitGroup
-		visited atomic.Int32
+		wg         sync.WaitGroup
+		visited    atomic.Int32
+		unexpected atomic.Int32
 	)
 
 	for range workers {
@@ -237,8 +241,13 @@ func TestRepositoryVisitConcurrent(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			if _, err := repo.Visit(context.Background(), code); err == nil {
+			_, err := repo.Visit(context.Background(), code)
+
+			switch {
+			case err == nil:
 				visited.Add(1)
+			case !errors.Is(err, link.ErrGone):
+				unexpected.Add(1)
 			}
 		}()
 	}
@@ -247,6 +256,10 @@ func TestRepositoryVisitConcurrent(t *testing.T) {
 
 	if got := visited.Load(); got != limit {
 		t.Errorf("successful visits = %d, want exactly %d", got, limit)
+	}
+
+	if got := unexpected.Load(); got != 0 {
+		t.Errorf("%d visits failed with an error other than ErrGone", got)
 	}
 
 	if got := clicksOf(t, pool, code); got != limit {

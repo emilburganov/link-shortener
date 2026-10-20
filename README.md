@@ -84,10 +84,18 @@ Location: https://example.com/page
 
 #### Response 404
 
-Ссылки нет или лимит переходов исчерпан.
+Ссылки нет.
 
 ```json
 {"error": "link not found"}
+```
+
+#### Response 410
+
+Лимит переходов исчерпан.
+
+```json
+{"error": "link is no longer available"}
 ```
 
 ## Конфигурация

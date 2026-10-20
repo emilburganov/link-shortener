@@ -198,10 +198,16 @@ func TestRedirect(t *testing.T) {
 			wantLocation: "https://example.com/page?x=1",
 		},
 		{
-			name:       "unknown, expired or exhausted link",
+			name:       "unknown link",
 			svc:        &fakeService{visitErr: link.ErrNotFound},
 			wantStatus: http.StatusNotFound,
 			wantError:  "link not found",
+		},
+		{
+			name:       "exhausted or expired link",
+			svc:        &fakeService{visitErr: link.ErrGone},
+			wantStatus: http.StatusGone,
+			wantError:  "link is no longer available",
 		},
 		{
 			name:       "unexpected error is not leaked",

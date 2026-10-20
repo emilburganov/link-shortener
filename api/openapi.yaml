@@ -77,13 +77,21 @@ paths:
                 type: string
                 format: uri
         "404":
-          description: Ссылки нет или лимит переходов исчерпан
+          description: Ссылки нет
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
               example:
                 error: link not found
+        "410":
+          description: Ссылка была, но лимит переходов исчерпан или срок жизни закончился
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: link is no longer available
         "500":
           description: Внутренняя ошибка
           content:

@@ -77,6 +77,8 @@ func (h *Handler) redirect(c *gin.Context) {
 	switch {
 	case errors.Is(err, link.ErrNotFound):
 		c.JSON(http.StatusNotFound, errorResponse{Error: "link not found"})
+	case errors.Is(err, link.ErrGone):
+		c.JSON(http.StatusGone, errorResponse{Error: "link is no longer available"})
 	case err != nil:
 		_ = c.Error(err)
 		c.JSON(http.StatusInternalServerError, errorResponse{Error: "internal error"})
