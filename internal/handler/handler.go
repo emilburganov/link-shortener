@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -26,7 +27,8 @@ func New(links LinkService) *Handler {
 }
 
 func (h *Handler) Routes() *gin.Engine {
-	router := gin.Default()
+	router := gin.New()
+	router.Use(gin.Recovery(), requestLogger(slog.Default()))
 	router.POST("/links", h.createLink)
 	router.GET("/:code", h.redirect)
 

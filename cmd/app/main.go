@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -25,8 +25,11 @@ const (
 )
 
 func main() {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
+
 	if err := run(); err != nil {
-		log.Fatal(err)
+		slog.Error("application stopped", "error", err)
+		os.Exit(1)
 	}
 }
 
@@ -49,6 +52,8 @@ func run() error {
 	}
 
 	defer pool.Close()
+
+	slog.Info("connected to database")
 
 	links := link.NewService(postgres.NewRepository(pool))
 	router := handler.New(links).Routes()
@@ -87,6 +92,8 @@ func newServer(port string, handler http.Handler) *http.Server {
 }
 
 func serve(ctx context.Context, srv *http.Server) error {
+	slog.Info("server starting", "addr", srv.Addr)
+
 	errCh := make(chan error, 1)
 
 	go func() {
@@ -99,7 +106,7 @@ func serve(ctx context.Context, srv *http.Server) error {
 	case <-ctx.Done():
 	}
 
-	log.Println("shutting down")
+	slog.Info("shutting down")
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
