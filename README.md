@@ -1,17 +1,18 @@
 # link-shortener
 
-Сервис сокращения ссылок на Go, gin и PostgreSQL.
+Сервис коротких ссылок на Go.
+
+Стек: Go, gin, PostgreSQL, pgx, Docker.
 
 ## Возможности
 
-- короткий код из 7 символов base62
-- ограничение числа переходов по ссылке
-- лимит переходов проверяется атомарно, гонки между запросами не превышают его
+- Короткая ссылка для адреса со схемой http:// или https://
+- Ограничение числа переходов: после лимита ссылка не открывается
+- Лимит соблюдается точно, даже когда по ссылке переходят одновременно
 
 ## Требования
 
-- Docker с Compose v2
-- свободный порт 8080
+- Docker 27.4
 
 ## Запуск
 
@@ -30,8 +31,6 @@ docker compose up -d --build --wait
 ```bash
 docker compose down
 ```
-
-Флаг `-v` дополнительно удалит данные базы.
 
 ## API
 
@@ -65,24 +64,38 @@ curl -X POST localhost:8080/links \
 
 | Переменная | Назначение | По умолчанию |
 |---|---|---|
-| `APP_PORT` | порт сервиса | обязательна |
-| `POSTGRES_USER` | пользователь БД | обязательна |
-| `POSTGRES_PASSWORD` | пароль БД | обязательна |
-| `POSTGRES_DB` | имя БД | обязательна |
-| `POSTGRES_SSLMODE` | режим SSL | `disable` в Docker Compose |
-| `POSTGRES_HOST` | хост БД | `postgres` |
-| `POSTGRES_PORT` | порт БД | `5432` |
-| `GIN_MODE` | режим gin | `release` в Docker Compose |
+| `APP_PORT` | Порт сервиса | Обязательна |
+| `POSTGRES_USER` | Пользователь БД | Обязательна |
+| `POSTGRES_PASSWORD` | Пароль БД | Обязательна |
+| `POSTGRES_DB` | Имя БД | Обязательна |
+| `POSTGRES_SSLMODE` | Режим SSL | В Docker Compose `disable` |
+| `POSTGRES_HOST` | Хост БД | `postgres` |
+| `POSTGRES_PORT` | Порт БД | `5432` |
+| `GIN_MODE` | Режим gin | В Docker Compose `release` |
 
 ## Структура
 
 ```
-cmd/app            точка входа
-internal/config    настройки из окружения
+cmd/app            Точка входа
+internal/config    Настройки из окружения
 internal/handler   HTTP-обработчики
-internal/link      логика ссылок и работа с БД
+internal/link      Логика ссылок и работа с БД
 migrations         SQL-миграции
 ```
+
+## Команды
+
+| Команда | Действие |
+|---|---|
+| `make up` | Собрать и запустить сервис |
+| `make down` | Остановить сервис |
+| `make logs` | Смотреть логи приложения |
+| `make fmt` | Отформатировать код |
+| `make lint` | Запустить линтеры |
+| `make test` | Юнит-тесты |
+| `make test-integration` | Тесты с настоящим Postgres в Docker |
+
+Для `fmt` и `lint` нужен установленный golangci-lint версии 2.
 
 ## Лицензия
 
