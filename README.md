@@ -23,7 +23,7 @@
 cp .env.example .env
 ```
 
-Задайте `POSTGRES_PASSWORD` в `.env`, затем:
+Установите `POSTGRES_PASSWORD` в `.env`, затем:
 
 ```bash
 docker compose up -d --build --wait
@@ -94,10 +94,10 @@ Location: https://example.com/page
 
 | Переменная | Назначение | По умолчанию |
 |---|---|---|
-| `APP_PORT` | Порт сервиса | Обязательна |
-| `POSTGRES_USER` | Пользователь БД | Обязательна |
-| `POSTGRES_PASSWORD` | Пароль БД | Обязательна |
-| `POSTGRES_DB` | Имя БД | Обязательна |
+| `APP_PORT` | Порт сервиса | Обязательная |
+| `POSTGRES_USER` | Пользователь БД | Обязательная |
+| `POSTGRES_PASSWORD` | Пароль БД | Обязательная |
+| `POSTGRES_DB` | Имя БД | Обязательная |
 | `POSTGRES_SSLMODE` | Режим SSL | В Docker Compose `disable` |
 | `POSTGRES_HOST` | Хост БД | `postgres` |
 | `POSTGRES_PORT` | Порт БД | `5432` |
