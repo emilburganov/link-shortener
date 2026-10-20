@@ -4,6 +4,8 @@ export
 NETWORK := $(notdir $(CURDIR))_default
 SSLMODE := $(or $(POSTGRES_SSLMODE),disable)
 DEV_DB_PORT ?= 5433
+LINT_IMAGE := golangci/golangci-lint:v2.14.0
+LINT := docker run --rm -v "$(CURDIR)":/app -v golangci-lint-cache:/root/.cache -w /app $(LINT_IMAGE) golangci-lint
 TEST_DB_URL := postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB)?sslmode=$(SSLMODE)
 COMPOSE_DEV := docker compose -f docker-compose.yml -f docker-compose.dev.yml
 
@@ -40,10 +42,10 @@ run:
 	POSTGRES_HOST=localhost POSTGRES_PORT=$(DEV_DB_PORT) go run ./cmd/app
 
 fmt:
-	golangci-lint fmt
+	$(LINT) fmt
 
 lint:
-	golangci-lint run ./...
+	$(LINT) run ./...
 
 test:
 	go test -race ./...

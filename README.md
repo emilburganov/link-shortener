@@ -130,8 +130,6 @@ migrations                   SQL-миграции
 | `make test` | Юнит-тесты |
 | `make test-integration` | Тесты с настоящим Postgres в Docker |
 
-Для `fmt` и `lint` нужен установленный golangci-lint версии 2.
-
 ## Лицензия
 
 MIT
