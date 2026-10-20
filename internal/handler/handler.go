@@ -30,6 +30,7 @@ func New(links LinkService, baseURL string) *Handler {
 
 func (h *Handler) Routes() *gin.Engine {
 	router := gin.New()
+	router.SetHTMLTemplate(pageTemplates)
 	router.Use(gin.Recovery(), requestLogger(slog.Default()))
 	router.POST("/links", h.createLink)
 	router.GET("/:code", h.redirect)
@@ -87,7 +88,7 @@ func (h *Handler) redirect(c *gin.Context) {
 	target, err := h.links.Visit(c.Request.Context(), c.Param("code"))
 
 	if err != nil {
-		writeError(c, err)
+		writeRedirectError(c, err)
 
 		return
 	}

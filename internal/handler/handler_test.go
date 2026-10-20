@@ -17,7 +17,10 @@ import (
 	"github.com/emilburganov/link-shortener/internal/link"
 )
 
-const testBaseURL = "http://short.test"
+const (
+	testBaseURL   = "http://short.test"
+	browserAccept = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+)
 
 func init() {
 	gin.SetMode(gin.TestMode)
@@ -235,8 +238,10 @@ func TestRedirect(t *testing.T) {
 	tests := []struct {
 		name         string
 		svc          *fakeService
+		accept       string
 		wantStatus   int
 		wantLocation string
+		wantType     string
 		wantError    string
 	}{
 		{
@@ -263,12 +268,49 @@ func TestRedirect(t *testing.T) {
 			wantStatus: http.StatusInternalServerError,
 			wantError:  "internal error",
 		},
+		{
+			name:       "browser gets a page for an unknown link",
+			svc:        &fakeService{visitErr: link.ErrNotFound},
+			accept:     browserAccept,
+			wantStatus: http.StatusNotFound,
+			wantType:   "text/html",
+			wantError:  "Ссылка не найдена",
+		},
+		{
+			name:       "browser gets a page for an exhausted link",
+			svc:        &fakeService{visitErr: link.ErrGone},
+			accept:     browserAccept,
+			wantStatus: http.StatusGone,
+			wantType:   "text/html",
+			wantError:  "Ссылка больше не действует",
+		},
+		{
+			name:       "api client gets json",
+			svc:        &fakeService{visitErr: link.ErrGone},
+			accept:     "application/json",
+			wantStatus: http.StatusGone,
+			wantType:   "application/json",
+			wantError:  "link is no longer available",
+		},
+		{
+			name:       "browser still gets json for an unexpected error",
+			svc:        &fakeService{visitErr: errors.New("connection to 10.0.0.5 refused")},
+			accept:     browserAccept,
+			wantStatus: http.StatusInternalServerError,
+			wantType:   "application/json",
+			wantError:  "internal error",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			router := New(tt.svc, testBaseURL).Routes()
 			req := httptest.NewRequest(http.MethodGet, "/abc1234", nil)
+
+			if tt.accept != "" {
+				req.Header.Set("Accept", tt.accept)
+			}
+
 			rec := httptest.NewRecorder()
 
 			router.ServeHTTP(rec, req)
@@ -279,6 +321,10 @@ func TestRedirect(t *testing.T) {
 
 			if got := rec.Header().Get("Location"); got != tt.wantLocation {
 				t.Errorf("Location = %q, want %q", got, tt.wantLocation)
+			}
+
+			if got := rec.Header().Get("Content-Type"); !strings.HasPrefix(got, tt.wantType) {
+				t.Errorf("Content-Type = %q, want prefix %q", got, tt.wantType)
 			}
 
 			if tt.wantError != "" && !strings.Contains(rec.Body.String(), tt.wantError) {

@@ -86,7 +86,7 @@ Location: https://example.com/page
 
 #### Response 404
 
-Ссылки нет.
+Ссылки нет. Браузер получает страницу с пояснением, остальные клиенты получают JSON.
 
 ```json
 {"error": "link not found"}
@@ -94,7 +94,7 @@ Location: https://example.com/page
 
 #### Response 410
 
-Лимит переходов исчерпан или срок жизни закончился.
+Лимит переходов исчерпан или срок жизни закончился. Для браузера тоже есть страница.
 
 ```json
 {"error": "link is no longer available"}
