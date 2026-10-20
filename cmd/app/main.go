@@ -52,7 +52,7 @@ func run() error {
 
 func connectDB(ctx context.Context, url string) (*pgxpool.Pool, error) {
 	pool, err := pgxpool.New(ctx, url)
-	
+
 	if err != nil {
 		return nil, fmt.Errorf("create db pool: %w", err)
 	}
@@ -82,8 +82,8 @@ func newServer(port string, handler http.Handler) *http.Server {
 
 func serve(ctx context.Context, srv *http.Server) error {
 	errCh := make(chan error, 1)
-	
-	go func() { 
+
+	go func() {
 		errCh <- srv.ListenAndServe()
 	}()
 

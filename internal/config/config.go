@@ -24,7 +24,7 @@ func Load() (Config, error) {
 	var missing []string
 	required := func(key string) string {
 		v := os.Getenv(key)
-		
+
 		if v == "" {
 			missing = append(missing, key)
 		}

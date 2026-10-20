@@ -1,0 +1,31 @@
+version: "2"
+
+run:
+  timeout: 3m
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/emilburganov/link-shortener
+
+linters:
+  default: standard
+  enable:
+    - errorlint
+    - lll
+    - misspell
+    - nlreturn
+    - nolintlint
+    - revive
+    - whitespace
+  settings:
+    lll:
+      line-length: 100
+      tab-width: 4
+  exclusions:
+    presets:
+      - comments
