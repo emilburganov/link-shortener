@@ -422,3 +422,59 @@ func TestAsset(t *testing.T) {
 		})
 	}
 }
+
+func TestNoRoute(t *testing.T) {
+	tests := []struct {
+		name      string
+		path      string
+		accept    string
+		wantType  string
+		wantInput string
+	}{
+		{
+			name:      "browser gets the not found page for an unknown path",
+			path:      "/links/sad",
+			accept:    browserAccept,
+			wantType:  "text/html",
+			wantInput: "Ссылка не найдена",
+		},
+		{
+			name:      "api client gets json for an unknown path",
+			path:      "/links/sad",
+			accept:    "application/json",
+			wantType:  "application/json",
+			wantInput: `"error":"not found"`,
+		},
+		{
+			name:      "browser gets the not found page for a deeper path",
+			path:      "/a/b/c",
+			accept:    browserAccept,
+			wantType:  "text/html",
+			wantInput: "Ссылка не найдена",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			router := New(&fakeService{}, testBaseURL, "").Routes()
+			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
+			req.Header.Set("Accept", tt.accept)
+
+			rec := httptest.NewRecorder()
+
+			router.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusNotFound {
+				t.Errorf("status = %d, want %d", rec.Code, http.StatusNotFound)
+			}
+
+			if got := rec.Header().Get("Content-Type"); !strings.HasPrefix(got, tt.wantType) {
+				t.Errorf("Content-Type = %q, want prefix %q", got, tt.wantType)
+			}
+
+			if !strings.Contains(rec.Body.String(), tt.wantInput) {
+				t.Errorf("body = %q, want it to contain %q", rec.Body.String(), tt.wantInput)
+			}
+		})
+	}
+}

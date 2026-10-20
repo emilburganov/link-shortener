@@ -36,6 +36,7 @@ func (h *Handler) Routes() *gin.Engine {
 	router.POST("/links", h.createLink)
 	router.GET("/_assets/:name", h.asset)
 	router.GET("/:code", h.redirect)
+	router.NoRoute(h.notFound)
 
 	return router
 }

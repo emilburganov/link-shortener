@@ -4,6 +4,7 @@ import (
 	"embed"
 	"errors"
 	"html/template"
+	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -50,18 +51,36 @@ func wantsHTML(c *gin.Context) bool {
 }
 
 func (h *Handler) writeRedirectError(c *gin.Context, err error) {
-	if wantsHTML(c) {
-		for _, p := range pageByError {
-			if errors.Is(err, p.err) {
-				page := p.page
-				page.HomeURL = h.frontendURL
-
-				c.HTML(page.Status, "unavailable.html", page)
-
-				return
-			}
-		}
+	if h.writeUnavailablePage(c, err) {
+		return
 	}
 
 	writeError(c, err)
+}
+
+func (h *Handler) notFound(c *gin.Context) {
+	if h.writeUnavailablePage(c, link.ErrNotFound) {
+		return
+	}
+
+	c.JSON(http.StatusNotFound, errorResponse{Error: "not found"})
+}
+
+func (h *Handler) writeUnavailablePage(c *gin.Context, err error) bool {
+	if !wantsHTML(c) {
+		return false
+	}
+
+	for _, p := range pageByError {
+		if errors.Is(err, p.err) {
+			page := p.page
+			page.HomeURL = h.frontendURL
+
+			c.HTML(page.Status, "unavailable.html", page)
+
+			return true
+		}
+	}
+
+	return false
 }
