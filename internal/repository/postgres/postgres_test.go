@@ -50,34 +50,50 @@ func TestRepositoryInsert(t *testing.T) {
 	})
 
 	maxClicks := int64(3)
+	expiresAt := time.Now().Add(time.Hour).UTC().Truncate(time.Microsecond)
 
 	t.Run("stores the link", func(t *testing.T) {
-		err := repo.Insert(ctx, code, "https://example.com", &maxClicks)
+		err := repo.Insert(ctx, code, link.NewLink{
+			URL:       "https://example.com",
+			MaxClicks: &maxClicks,
+			ExpiresAt: &expiresAt,
+		})
 
 		if err != nil {
 			t.Fatalf("Insert() error: %v", err)
 		}
 
 		var (
-			url    string
-			clicks int64
-			limit  *int64
+			url     string
+			clicks  int64
+			limit   *int64
+			expires *time.Time
 		)
 
-		row := pool.QueryRow(ctx, "SELECT url, clicks, max_clicks FROM links WHERE code = $1", code)
-		err = row.Scan(&url, &clicks, &limit)
+		row := pool.QueryRow(
+			ctx, "SELECT url, clicks, max_clicks, expires_at FROM links WHERE code = $1", code,
+		)
+		err = row.Scan(&url, &clicks, &limit, &expires)
 
 		if err != nil {
 			t.Fatalf("select inserted row: %v", err)
 		}
 
-		if url != "https://example.com" || clicks != 0 || limit == nil || *limit != maxClicks {
-			t.Errorf("row = (%q, %d, %v), want (example.com, 0, %d)", url, clicks, limit, maxClicks)
+		if url != "https://example.com" || clicks != 0 {
+			t.Errorf("url and clicks = (%q, %d), want (example.com, 0)", url, clicks)
+		}
+
+		if limit == nil || *limit != maxClicks {
+			t.Errorf("max_clicks = %v, want %d", limit, maxClicks)
+		}
+
+		if expires == nil || !expires.Equal(expiresAt) {
+			t.Errorf("expires_at = %v, want %v", expires, expiresAt)
 		}
 	})
 
 	t.Run("duplicate code returns ErrCodeTaken", func(t *testing.T) {
-		err := repo.Insert(ctx, code, "https://other.example.com", nil)
+		err := repo.Insert(ctx, code, link.NewLink{URL: "https://other.example.com"})
 
 		if !errors.Is(err, link.ErrCodeTaken) {
 			t.Errorf("Insert() error = %v, want ErrCodeTaken", err)
@@ -85,7 +101,7 @@ func TestRepositoryInsert(t *testing.T) {
 	})
 
 	t.Run("other constraint violation is not ErrCodeTaken", func(t *testing.T) {
-		err := repo.Insert(ctx, code+"x", "", nil)
+		err := repo.Insert(ctx, code+"x", link.NewLink{})
 
 		if err == nil || errors.Is(err, link.ErrCodeTaken) {
 			t.Errorf("Insert() error = %v, want a check-constraint error", err)

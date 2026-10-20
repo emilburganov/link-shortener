@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 )
 
 const (
@@ -14,30 +15,42 @@ const (
 var (
 	ErrCodeTaken        = errors.New("code already taken")
 	ErrInvalidMaxClicks = errors.New("max_clicks must be positive")
+	ErrInvalidExpiresAt = errors.New("expires_at must be in the future")
 	ErrNotFound         = errors.New("link not found")
 	ErrGone             = errors.New("link is no longer available")
 )
 
+type NewLink struct {
+	URL       string
+	MaxClicks *int64
+	ExpiresAt *time.Time
+}
+
 type Repository interface {
-	Insert(ctx context.Context, code, url string, maxClicks *int64) error
+	Insert(ctx context.Context, code string, in NewLink) error
 	Visit(ctx context.Context, code string) (string, error)
 }
 
 type Service struct {
 	repo Repository
+	now  func() time.Time
 }
 
 func NewService(repo Repository) *Service {
-	return &Service{repo: repo}
+	return &Service{repo: repo, now: time.Now}
 }
 
-func (s *Service) Create(ctx context.Context, rawURL string, maxClicks *int64) (string, error) {
-	if err := validateURL(rawURL); err != nil {
+func (s *Service) Create(ctx context.Context, in NewLink) (string, error) {
+	if err := validateURL(in.URL); err != nil {
 		return "", err
 	}
 
-	if maxClicks != nil && *maxClicks <= 0 {
+	if in.MaxClicks != nil && *in.MaxClicks <= 0 {
 		return "", ErrInvalidMaxClicks
+	}
+
+	if in.ExpiresAt != nil && !in.ExpiresAt.After(s.now()) {
+		return "", ErrInvalidExpiresAt
 	}
 
 	for range maxInsertAttempts {
@@ -47,7 +60,7 @@ func (s *Service) Create(ctx context.Context, rawURL string, maxClicks *int64) (
 			return "", err
 		}
 
-		err = s.repo.Insert(ctx, code, rawURL, maxClicks)
+		err = s.repo.Insert(ctx, code, in)
 
 		if errors.Is(err, ErrCodeTaken) {
 			continue

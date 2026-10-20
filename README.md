@@ -12,6 +12,7 @@
 - [x] Короткая ссылка для адреса со схемой http:// или https://
 - [x] Ограничение числа переходов: после лимита ссылка не открывается
 - [x] Лимит соблюдается точно, даже когда по ссылке переходят одновременно
+- [x] Срок жизни ссылки: после его окончания ссылка не открывается
 
 ## Требования
 
@@ -48,10 +49,10 @@ docker compose down
 ```bash
 curl -X POST localhost:8080/links \
   -H 'Content-Type: application/json' \
-  -d '{"url": "https://example.com/page", "max_clicks": 5}'
+  -d '{"url": "https://example.com/page", "max_clicks": 5, "expires_at": "2030-01-02T03:04:05Z"}'
 ```
 
-Поле `max_clicks` необязательное.
+Поля `max_clicks` и `expires_at` необязательные. Срок жизни указывается в формате RFC 3339 и должен быть в будущем.
 
 #### Response 201
 
@@ -92,7 +93,7 @@ Location: https://example.com/page
 
 #### Response 410
 
-Лимит переходов исчерпан.
+Лимит переходов исчерпан или срок жизни закончился.
 
 ```json
 {"error": "link is no longer available"}

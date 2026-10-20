@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -19,11 +20,10 @@ func init() {
 }
 
 type fakeService struct {
-	code     string
-	err      error
-	calls    int
-	gotURL   string
-	gotLimit *int64
+	code   string
+	err    error
+	calls  int
+	gotNew link.NewLink
 
 	visitURL   string
 	visitErr   error
@@ -31,16 +31,16 @@ type fakeService struct {
 	gotCode    string
 }
 
-func (f *fakeService) Create(_ context.Context, rawURL string, maxClicks *int64) (string, error) {
+func (f *fakeService) Create(_ context.Context, in link.NewLink) (string, error) {
 	f.calls++
-	f.gotURL = rawURL
-	f.gotLimit = maxClicks
+	f.gotNew = in
 
 	return f.code, f.err
 }
 
 func TestCreateLink(t *testing.T) {
 	five := int64(5)
+	expiresAt := time.Date(2030, 1, 2, 3, 4, 5, 0, time.UTC)
 
 	tests := []struct {
 		name       string
@@ -49,8 +49,7 @@ func TestCreateLink(t *testing.T) {
 		wantStatus int
 		wantBody   map[string]string
 		wantCalls  int
-		wantURL    string
-		wantLimit  *int64
+		wantNew    link.NewLink
 	}{
 		{
 			name:       "created",
@@ -59,7 +58,7 @@ func TestCreateLink(t *testing.T) {
 			wantStatus: http.StatusCreated,
 			wantBody:   map[string]string{"code": "abc1234"},
 			wantCalls:  1,
-			wantURL:    "https://example.com",
+			wantNew:    link.NewLink{URL: "https://example.com"},
 		},
 		{
 			name:       "created with max clicks",
@@ -68,8 +67,16 @@ func TestCreateLink(t *testing.T) {
 			wantStatus: http.StatusCreated,
 			wantBody:   map[string]string{"code": "abc1234"},
 			wantCalls:  1,
-			wantURL:    "https://example.com",
-			wantLimit:  &five,
+			wantNew:    link.NewLink{URL: "https://example.com", MaxClicks: &five},
+		},
+		{
+			name:       "created with expiry",
+			body:       `{"url":"https://example.com","expires_at":"2030-01-02T03:04:05Z"}`,
+			svc:        &fakeService{code: "abc1234"},
+			wantStatus: http.StatusCreated,
+			wantBody:   map[string]string{"code": "abc1234"},
+			wantCalls:  1,
+			wantNew:    link.NewLink{URL: "https://example.com", ExpiresAt: &expiresAt},
 		},
 		{
 			name:       "not a json",
@@ -93,6 +100,13 @@ func TestCreateLink(t *testing.T) {
 			wantBody:   map[string]string{"error": "invalid request body"},
 		},
 		{
+			name:       "expiry has a wrong format",
+			body:       `{"url":"https://example.com","expires_at":"tomorrow"}`,
+			svc:        &fakeService{},
+			wantStatus: http.StatusBadRequest,
+			wantBody:   map[string]string{"error": "invalid request body"},
+		},
+		{
 			name:       "body is too large",
 			body:       `{"url":"https://example.com/` + strings.Repeat("a", maxBodyBytes) + `"}`,
 			svc:        &fakeService{},
@@ -106,7 +120,7 @@ func TestCreateLink(t *testing.T) {
 			wantStatus: http.StatusBadRequest,
 			wantBody:   map[string]string{"error": link.ErrInvalidURL.Error()},
 			wantCalls:  1,
-			wantURL:    "nope",
+			wantNew:    link.NewLink{URL: "nope"},
 		},
 		{
 			name:       "service rejects max clicks",
@@ -115,8 +129,16 @@ func TestCreateLink(t *testing.T) {
 			wantStatus: http.StatusBadRequest,
 			wantBody:   map[string]string{"error": link.ErrInvalidMaxClicks.Error()},
 			wantCalls:  1,
-			wantURL:    "https://example.com",
-			wantLimit:  new(int64),
+			wantNew:    link.NewLink{URL: "https://example.com", MaxClicks: new(int64)},
+		},
+		{
+			name:       "service rejects expiry",
+			body:       `{"url":"https://example.com","expires_at":"2030-01-02T03:04:05Z"}`,
+			svc:        &fakeService{err: link.ErrInvalidExpiresAt},
+			wantStatus: http.StatusBadRequest,
+			wantBody:   map[string]string{"error": link.ErrInvalidExpiresAt.Error()},
+			wantCalls:  1,
+			wantNew:    link.NewLink{URL: "https://example.com", ExpiresAt: &expiresAt},
 		},
 		{
 			name:       "unexpected error is not leaked",
@@ -125,7 +147,7 @@ func TestCreateLink(t *testing.T) {
 			wantStatus: http.StatusInternalServerError,
 			wantBody:   map[string]string{"error": "internal error"},
 			wantCalls:  1,
-			wantURL:    "https://example.com",
+			wantNew:    link.NewLink{URL: "https://example.com"},
 		},
 	}
 
@@ -157,15 +179,17 @@ func TestCreateLink(t *testing.T) {
 				t.Errorf("service called %d times, want %d", tt.svc.calls, tt.wantCalls)
 			}
 
-			if tt.svc.gotURL != tt.wantURL {
-				t.Errorf("service got url %q, want %q", tt.svc.gotURL, tt.wantURL)
-			}
-
-			if !equalLimit(tt.svc.gotLimit, tt.wantLimit) {
-				t.Errorf("service got limit %v, want %v", tt.svc.gotLimit, tt.wantLimit)
+			if !equalNewLink(tt.svc.gotNew, tt.wantNew) {
+				t.Errorf("service got %+v, want %+v", tt.svc.gotNew, tt.wantNew)
 			}
 		})
 	}
+}
+
+func equalNewLink(a, b link.NewLink) bool {
+	return a.URL == b.URL &&
+		equalLimit(a.MaxClicks, b.MaxClicks) &&
+		equalTime(a.ExpiresAt, b.ExpiresAt)
 }
 
 func equalLimit(a, b *int64) bool {
@@ -174,6 +198,14 @@ func equalLimit(a, b *int64) bool {
 	}
 
 	return *a == *b
+}
+
+func equalTime(a, b *time.Time) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+
+	return a.Equal(*b)
 }
 
 func (f *fakeService) Visit(_ context.Context, code string) (string, error) {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -14,7 +15,7 @@ import (
 const maxBodyBytes = 8 << 10
 
 type LinkService interface {
-	Create(ctx context.Context, rawURL string, maxClicks *int64) (string, error)
+	Create(ctx context.Context, in link.NewLink) (string, error)
 	Visit(ctx context.Context, code string) (string, error)
 }
 
@@ -36,8 +37,9 @@ func (h *Handler) Routes() *gin.Engine {
 }
 
 type createLinkRequest struct {
-	URL       string `json:"url" binding:"required"`
-	MaxClicks *int64 `json:"max_clicks"`
+	URL       string     `json:"url" binding:"required"`
+	MaxClicks *int64     `json:"max_clicks"`
+	ExpiresAt *time.Time `json:"expires_at"`
 }
 
 type createLinkResponse struct {
@@ -60,10 +62,16 @@ func (h *Handler) createLink(c *gin.Context) {
 		return
 	}
 
-	code, err := h.links.Create(c.Request.Context(), req.URL, req.MaxClicks)
+	code, err := h.links.Create(c.Request.Context(), link.NewLink{
+		URL:       req.URL,
+		MaxClicks: req.MaxClicks,
+		ExpiresAt: req.ExpiresAt,
+	})
 
 	switch {
-	case errors.Is(err, link.ErrInvalidURL), errors.Is(err, link.ErrInvalidMaxClicks):
+	case errors.Is(err, link.ErrInvalidURL),
+		errors.Is(err, link.ErrInvalidMaxClicks),
+		errors.Is(err, link.ErrInvalidExpiresAt):
 		c.JSON(http.StatusBadRequest, errorResponse{Error: err.Error()})
 	case err != nil:
 		_ = c.Error(err)

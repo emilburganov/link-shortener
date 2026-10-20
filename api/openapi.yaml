@@ -32,7 +32,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/CreateLinkResponse"
         "400":
-          description: Неверное тело запроса, адрес или лимит переходов
+          description: Неверное тело запроса, адрес, лимит переходов или срок жизни
           content:
             application/json:
               schema:
@@ -47,6 +47,9 @@ paths:
                 invalidMaxClicks:
                   value:
                     error: max_clicks must be positive
+                invalidExpiresAt:
+                  value:
+                    error: expires_at must be in the future
         "500":
           description: Внутренняя ошибка
           content:
@@ -118,6 +121,11 @@ components:
           minimum: 1
           description: Максимальное число переходов, без поля переходы не ограничены
           example: 5
+        expires_at:
+          type: string
+          format: date-time
+          description: Момент окончания срока жизни, должен быть в будущем
+          example: "2030-01-02T03:04:05Z"
 
     CreateLinkResponse:
       type: object

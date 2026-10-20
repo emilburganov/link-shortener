@@ -18,8 +18,8 @@ const (
 )
 
 const insertQuery = `
-	INSERT INTO links (code, url, max_clicks)
-	VALUES ($1, $2, $3)`
+	INSERT INTO links (code, url, max_clicks, expires_at)
+	VALUES ($1, $2, $3, $4)`
 
 const visitQuery = `
 	UPDATE links
@@ -39,10 +39,8 @@ func NewRepository(pool *pgxpool.Pool) *Repository {
 	return &Repository{pool: pool}
 }
 
-func (r *Repository) Insert(
-	ctx context.Context, code, url string, maxClicks *int64,
-) error {
-	_, err := r.pool.Exec(ctx, insertQuery, code, url, maxClicks)
+func (r *Repository) Insert(ctx context.Context, code string, in link.NewLink) error {
+	_, err := r.pool.Exec(ctx, insertQuery, code, in.URL, in.MaxClicks, in.ExpiresAt)
 
 	var pgErr *pgconn.PgError
 

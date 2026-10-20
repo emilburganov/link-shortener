@@ -4,16 +4,19 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 )
 
 type fakeRepo struct {
 	insertErrs []error
 	calls      int
 	lastCode   string
+	lastIn     NewLink
 }
 
-func (f *fakeRepo) Insert(_ context.Context, code, _ string, _ *int64) error {
+func (f *fakeRepo) Insert(_ context.Context, code string, in NewLink) error {
 	f.lastCode = code
+	f.lastIn = in
 
 	var err error
 
@@ -36,34 +39,41 @@ func TestServiceCreate(t *testing.T) {
 	negative := int64(-5)
 	five := int64(5)
 
+	now := time.Date(2030, 1, 1, 12, 0, 0, 0, time.UTC)
+	later := now.Add(time.Hour)
+	earlier := now.Add(-time.Hour)
+
 	tests := []struct {
 		name      string
-		url       string
-		maxClicks *int64
+		in        NewLink
 		repoErrs  []error
 		wantCalls int
 		wantErr   error
 	}{
 		{
 			name:      "success on first try",
-			url:       "https://example.com",
+			in:        NewLink{URL: "https://example.com"},
 			wantCalls: 1,
 		},
 		{
 			name:      "success with max clicks",
-			url:       "https://example.com",
-			maxClicks: &five,
+			in:        NewLink{URL: "https://example.com", MaxClicks: &five},
+			wantCalls: 1,
+		},
+		{
+			name:      "success with expiry in the future",
+			in:        NewLink{URL: "https://example.com", ExpiresAt: &later},
 			wantCalls: 1,
 		},
 		{
 			name:      "retries after collisions",
-			url:       "https://example.com",
+			in:        NewLink{URL: "https://example.com"},
 			repoErrs:  []error{ErrCodeTaken, ErrCodeTaken},
 			wantCalls: 3,
 		},
 		{
 			name: "gives up after max attempts",
-			url:  "https://example.com",
+			in:   NewLink{URL: "https://example.com"},
 			repoErrs: []error{
 				ErrCodeTaken, ErrCodeTaken, ErrCodeTaken, ErrCodeTaken, ErrCodeTaken,
 			},
@@ -72,27 +82,35 @@ func TestServiceCreate(t *testing.T) {
 		},
 		{
 			name:      "db error is not retried",
-			url:       "https://example.com",
+			in:        NewLink{URL: "https://example.com"},
 			repoErrs:  []error{errDB},
 			wantCalls: 1,
 			wantErr:   errDB,
 		},
 		{
 			name:    "invalid url never reaches db",
-			url:     "nope",
+			in:      NewLink{URL: "nope"},
 			wantErr: ErrInvalidURL,
 		},
 		{
-			name:      "zero max clicks never reaches db",
-			url:       "https://example.com",
-			maxClicks: &zero,
-			wantErr:   ErrInvalidMaxClicks,
+			name:    "zero max clicks never reaches db",
+			in:      NewLink{URL: "https://example.com", MaxClicks: &zero},
+			wantErr: ErrInvalidMaxClicks,
 		},
 		{
-			name:      "negative max clicks never reaches db",
-			url:       "https://example.com",
-			maxClicks: &negative,
-			wantErr:   ErrInvalidMaxClicks,
+			name:    "negative max clicks never reaches db",
+			in:      NewLink{URL: "https://example.com", MaxClicks: &negative},
+			wantErr: ErrInvalidMaxClicks,
+		},
+		{
+			name:    "expiry in the past never reaches db",
+			in:      NewLink{URL: "https://example.com", ExpiresAt: &earlier},
+			wantErr: ErrInvalidExpiresAt,
+		},
+		{
+			name:    "expiry equal to now never reaches db",
+			in:      NewLink{URL: "https://example.com", ExpiresAt: &now},
+			wantErr: ErrInvalidExpiresAt,
 		},
 	}
 
@@ -100,8 +118,9 @@ func TestServiceCreate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := &fakeRepo{insertErrs: tt.repoErrs}
 			svc := NewService(repo)
+			svc.now = func() time.Time { return now }
 
-			code, err := svc.Create(context.Background(), tt.url, tt.maxClicks)
+			code, err := svc.Create(context.Background(), tt.in)
 
 			if repo.calls != tt.wantCalls {
 				t.Errorf("Insert called %d times, want %d", repo.calls, tt.wantCalls)
@@ -125,6 +144,10 @@ func TestServiceCreate(t *testing.T) {
 
 			if code != repo.lastCode {
 				t.Errorf("returned code %q is not the one inserted last (%q)", code, repo.lastCode)
+			}
+
+			if repo.lastIn != tt.in {
+				t.Errorf("repository got %+v, want %+v", repo.lastIn, tt.in)
 			}
 		})
 	}
