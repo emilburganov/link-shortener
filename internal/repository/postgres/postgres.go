@@ -1,4 +1,4 @@
-package link
+package postgres
 
 import (
 	"context"
@@ -8,6 +8,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/emilburganov/link-shortener/internal/link"
 )
 
 const (
@@ -27,15 +29,15 @@ const visitQuery = `
 		AND (max_clicks IS NULL OR clicks < max_clicks)
 	RETURNING url`
 
-type PostgresRepository struct {
+type Repository struct {
 	pool *pgxpool.Pool
 }
 
-func NewPostgresRepository(pool *pgxpool.Pool) *PostgresRepository {
-	return &PostgresRepository{pool: pool}
+func NewRepository(pool *pgxpool.Pool) *Repository {
+	return &Repository{pool: pool}
 }
 
-func (r *PostgresRepository) Insert(
+func (r *Repository) Insert(
 	ctx context.Context, code, url string, maxClicks *int64,
 ) error {
 	_, err := r.pool.Exec(ctx, insertQuery, code, url, maxClicks)
@@ -44,19 +46,19 @@ func (r *PostgresRepository) Insert(
 
 	if errors.As(err, &pgErr) && pgErr.Code == uniqueViolation &&
 		pgErr.ConstraintName == codeConstraint {
-		return ErrCodeTaken
+		return link.ErrCodeTaken
 	}
 
 	return err
 }
 
-func (r *PostgresRepository) Visit(ctx context.Context, code string) (string, error) {
+func (r *Repository) Visit(ctx context.Context, code string) (string, error) {
 	var url string
 
 	err := r.pool.QueryRow(ctx, visitQuery, code).Scan(&url)
 
 	if errors.Is(err, pgx.ErrNoRows) {
-		return "", ErrNotFound
+		return "", link.ErrNotFound
 	}
 
 	if err != nil {

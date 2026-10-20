@@ -16,6 +16,7 @@ import (
 	"github.com/emilburganov/link-shortener/internal/config"
 	"github.com/emilburganov/link-shortener/internal/handler"
 	"github.com/emilburganov/link-shortener/internal/link"
+	"github.com/emilburganov/link-shortener/internal/repository/postgres"
 )
 
 const (
@@ -49,7 +50,7 @@ func run() error {
 
 	defer pool.Close()
 
-	links := link.NewService(link.NewPostgresRepository(pool))
+	links := link.NewService(postgres.NewRepository(pool))
 	router := handler.New(links).Routes()
 
 	return serve(ctx, newServer(cfg.Port, router))

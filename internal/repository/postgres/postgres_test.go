@@ -1,4 +1,4 @@
-package link
+package postgres
 
 import (
 	"context"
@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/emilburganov/link-shortener/internal/link"
 )
 
 func newTestPool(t *testing.T) *pgxpool.Pool {
@@ -32,12 +34,12 @@ func newTestPool(t *testing.T) *pgxpool.Pool {
 	return pool
 }
 
-func TestPostgresRepositoryInsert(t *testing.T) {
+func TestRepositoryInsert(t *testing.T) {
 	ctx := context.Background()
 	pool := newTestPool(t)
-	repo := NewPostgresRepository(pool)
+	repo := NewRepository(pool)
 
-	code, err := GenerateCode(12)
+	code, err := link.GenerateCode(12)
 
 	if err != nil {
 		t.Fatal(err)
@@ -77,7 +79,7 @@ func TestPostgresRepositoryInsert(t *testing.T) {
 	t.Run("duplicate code returns ErrCodeTaken", func(t *testing.T) {
 		err := repo.Insert(ctx, code, "https://other.example.com", nil)
 
-		if !errors.Is(err, ErrCodeTaken) {
+		if !errors.Is(err, link.ErrCodeTaken) {
 			t.Errorf("Insert() error = %v, want ErrCodeTaken", err)
 		}
 	})
@@ -85,7 +87,7 @@ func TestPostgresRepositoryInsert(t *testing.T) {
 	t.Run("other constraint violation is not ErrCodeTaken", func(t *testing.T) {
 		err := repo.Insert(ctx, code+"x", "", nil)
 
-		if err == nil || errors.Is(err, ErrCodeTaken) {
+		if err == nil || errors.Is(err, link.ErrCodeTaken) {
 			t.Errorf("Insert() error = %v, want a check-constraint error", err)
 		}
 	})
@@ -94,7 +96,7 @@ func TestPostgresRepositoryInsert(t *testing.T) {
 func seedLink(t *testing.T, pool *pgxpool.Pool, maxClicks *int64, expiresAt *time.Time) string {
 	t.Helper()
 
-	code, err := GenerateCode(12)
+	code, err := link.GenerateCode(12)
 
 	if err != nil {
 		t.Fatal(err)
@@ -130,10 +132,10 @@ func clicksOf(t *testing.T, pool *pgxpool.Pool, code string) int64 {
 	return clicks
 }
 
-func TestPostgresRepositoryVisit(t *testing.T) {
+func TestRepositoryVisit(t *testing.T) {
 	ctx := context.Background()
 	pool := newTestPool(t)
-	repo := NewPostgresRepository(pool)
+	repo := NewRepository(pool)
 
 	two := int64(2)
 	past := time.Now().Add(-time.Hour)
@@ -179,7 +181,7 @@ func TestPostgresRepositoryVisit(t *testing.T) {
 			for range tt.visits {
 				url, err := repo.Visit(ctx, code)
 
-				if errors.Is(err, ErrNotFound) {
+				if errors.Is(err, link.ErrNotFound) {
 					continue
 				}
 
@@ -207,20 +209,20 @@ func TestPostgresRepositoryVisit(t *testing.T) {
 	t.Run("unknown code", func(t *testing.T) {
 		_, err := repo.Visit(ctx, "doesnotexist")
 
-		if !errors.Is(err, ErrNotFound) {
+		if !errors.Is(err, link.ErrNotFound) {
 			t.Errorf("Visit() error = %v, want ErrNotFound", err)
 		}
 	})
 }
 
-func TestPostgresRepositoryVisitConcurrent(t *testing.T) {
+func TestRepositoryVisitConcurrent(t *testing.T) {
 	const (
 		limit   = 5
 		workers = 30
 	)
 
 	pool := newTestPool(t)
-	repo := NewPostgresRepository(pool)
+	repo := NewRepository(pool)
 	maxClicks := int64(limit)
 	code := seedLink(t, pool, &maxClicks, nil)
 
