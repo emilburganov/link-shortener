@@ -14,6 +14,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/emilburganov/link-shortener/internal/config"
+	"github.com/emilburganov/link-shortener/internal/handler"
+	"github.com/emilburganov/link-shortener/internal/link"
 )
 
 const (
@@ -47,7 +49,10 @@ func run() error {
 
 	defer pool.Close()
 
-	return serve(ctx, newServer(cfg.Port, gin.Default()))
+	links := link.NewService(link.NewPostgresRepository(pool))
+	router := handler.New(links).Routes()
+
+	return serve(ctx, newServer(cfg.Port, router))
 }
 
 func connectDB(ctx context.Context, url string) (*pgxpool.Pool, error) {
