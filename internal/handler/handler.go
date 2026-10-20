@@ -70,34 +70,51 @@ func (h *Handler) createLink(c *gin.Context) {
 		ExpiresAt: req.ExpiresAt,
 	})
 
-	switch {
-	case errors.Is(err, link.ErrInvalidURL),
-		errors.Is(err, link.ErrInvalidMaxClicks),
-		errors.Is(err, link.ErrInvalidExpiresAt):
-		c.JSON(http.StatusBadRequest, errorResponse{Error: err.Error()})
-	case err != nil:
-		_ = c.Error(err)
-		c.JSON(http.StatusInternalServerError, errorResponse{Error: "internal error"})
-	default:
-		c.JSON(http.StatusCreated, createLinkResponse{
-			Code:     code,
-			ShortURL: h.baseURL + "/" + code,
-		})
+	if err != nil {
+		writeError(c, err)
+
+		return
 	}
+
+	c.JSON(http.StatusCreated, createLinkResponse{Code: code, ShortURL: h.shortURL(code)})
+}
+
+func (h *Handler) shortURL(code string) string {
+	return h.baseURL + "/" + code
 }
 
 func (h *Handler) redirect(c *gin.Context) {
 	target, err := h.links.Visit(c.Request.Context(), c.Param("code"))
 
-	switch {
-	case errors.Is(err, link.ErrNotFound):
-		c.JSON(http.StatusNotFound, errorResponse{Error: "link not found"})
-	case errors.Is(err, link.ErrGone):
-		c.JSON(http.StatusGone, errorResponse{Error: "link is no longer available"})
-	case err != nil:
-		_ = c.Error(err)
-		c.JSON(http.StatusInternalServerError, errorResponse{Error: "internal error"})
-	default:
-		c.Redirect(http.StatusFound, target)
+	if err != nil {
+		writeError(c, err)
+
+		return
 	}
+
+	c.Redirect(http.StatusFound, target)
+}
+
+var statusByError = []struct {
+	err    error
+	status int
+}{
+	{link.ErrInvalidURL, http.StatusBadRequest},
+	{link.ErrInvalidMaxClicks, http.StatusBadRequest},
+	{link.ErrInvalidExpiresAt, http.StatusBadRequest},
+	{link.ErrNotFound, http.StatusNotFound},
+	{link.ErrGone, http.StatusGone},
+}
+
+func writeError(c *gin.Context, err error) {
+	for _, m := range statusByError {
+		if errors.Is(err, m.err) {
+			c.JSON(m.status, errorResponse{Error: m.err.Error()})
+
+			return
+		}
+	}
+
+	_ = c.Error(err)
+	c.JSON(http.StatusInternalServerError, errorResponse{Error: "internal error"})
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"maps"
 	"net/http"
 	"net/http/httptest"
@@ -146,6 +147,15 @@ func TestCreateLink(t *testing.T) {
 			wantBody:   map[string]string{"error": link.ErrInvalidExpiresAt.Error()},
 			wantCalls:  1,
 			wantNew:    link.NewLink{URL: "https://example.com", ExpiresAt: &expiresAt},
+		},
+		{
+			name:       "wrapped error keeps its status and hides the context",
+			body:       `{"url":"https://example.com"}`,
+			svc:        &fakeService{err: fmt.Errorf("insert link: %w", link.ErrInvalidURL)},
+			wantStatus: http.StatusBadRequest,
+			wantBody:   map[string]string{"error": link.ErrInvalidURL.Error()},
+			wantCalls:  1,
+			wantNew:    link.NewLink{URL: "https://example.com"},
 		},
 		{
 			name:       "unexpected error is not leaked",
