@@ -20,6 +20,7 @@ type unavailablePage struct {
 	Status  int
 	Heading string
 	Text    string
+	HomeURL string
 }
 
 var pageByError = []struct {
@@ -48,11 +49,14 @@ func wantsHTML(c *gin.Context) bool {
 	return strings.Contains(c.GetHeader("Accept"), "text/html")
 }
 
-func writeRedirectError(c *gin.Context, err error) {
+func (h *Handler) writeRedirectError(c *gin.Context, err error) {
 	if wantsHTML(c) {
 		for _, p := range pageByError {
 			if errors.Is(err, p.err) {
-				c.HTML(p.page.Status, "unavailable.html", p.page)
+				page := p.page
+				page.HomeURL = h.frontendURL
+
+				c.HTML(page.Status, "unavailable.html", page)
 
 				return
 			}

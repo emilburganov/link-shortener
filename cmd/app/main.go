@@ -56,7 +56,7 @@ func run() error {
 	slog.Info("connected to database")
 
 	links := link.NewService(postgres.NewRepository(pool))
-	router := handler.New(links, cfg.BaseURL).Routes()
+	router := handler.New(links, cfg.BaseURL, cfg.FrontendURL).Routes()
 
 	return serve(ctx, newServer(cfg.Port, router))
 }

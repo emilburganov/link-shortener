@@ -14,6 +14,7 @@ import (
 type Config struct {
 	Port        string
 	BaseURL     string
+	FrontendURL string
 	GinMode     string
 	DatabaseURL string
 }
@@ -55,25 +56,36 @@ func Load() (Config, error) {
 		RawQuery: url.Values{"sslmode": {sslmode}}.Encode(),
 	}
 
-	baseURL, err := parseBaseURL(getenv("BASE_URL", "http://localhost:"+port))
+	baseURL, err := parseHTTPURL("BASE_URL", getenv("BASE_URL", "http://localhost:"+port))
 
 	if err != nil {
 		return Config{}, err
 	}
 
+	frontendURL := os.Getenv("FRONTEND_URL")
+
+	if frontendURL != "" {
+		frontendURL, err = parseHTTPURL("FRONTEND_URL", frontendURL)
+
+		if err != nil {
+			return Config{}, err
+		}
+	}
+
 	return Config{
 		Port:        port,
 		BaseURL:     baseURL,
+		FrontendURL: frontendURL,
 		GinMode:     os.Getenv("GIN_MODE"),
 		DatabaseURL: dsn.String(),
 	}, nil
 }
 
-func parseBaseURL(raw string) (string, error) {
+func parseHTTPURL(name, raw string) (string, error) {
 	u, err := url.Parse(raw)
 
 	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
-		return "", fmt.Errorf("BASE_URL must be an http or https address, got %q", raw)
+		return "", fmt.Errorf("%s must be an http or https address, got %q", name, raw)
 	}
 
 	return strings.TrimRight(raw, "/"), nil

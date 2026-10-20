@@ -32,6 +32,7 @@ services:
     environment:
       APP_PORT: ${APP_PORT}
       BASE_URL: ${BASE_URL:-}
+      FRONTEND_URL: ${FRONTEND_URL:-}
       GIN_MODE: ${GIN_MODE:-release}
       POSTGRES_HOST: postgres
       POSTGRES_USER: ${POSTGRES_USER}

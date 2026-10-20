@@ -173,7 +173,7 @@ func TestCreateLink(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			router := New(tt.svc, testBaseURL).Routes()
+			router := New(tt.svc, testBaseURL, "").Routes()
 			req := httptest.NewRequest(http.MethodPost, "/links", strings.NewReader(tt.body))
 			req.Header.Set("Content-Type", "application/json")
 			rec := httptest.NewRecorder()
@@ -304,7 +304,7 @@ func TestRedirect(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			router := New(tt.svc, testBaseURL).Routes()
+			router := New(tt.svc, testBaseURL, "").Routes()
 			req := httptest.NewRequest(http.MethodGet, "/abc1234", nil)
 
 			if tt.accept != "" {
@@ -334,6 +334,90 @@ func TestRedirect(t *testing.T) {
 			if tt.svc.visitCalls != 1 || tt.svc.gotCode != "abc1234" {
 				t.Errorf("Visit called %d times with %q, want once with abc1234",
 					tt.svc.visitCalls, tt.svc.gotCode)
+			}
+		})
+	}
+}
+
+func TestUnavailablePageHomeLink(t *testing.T) {
+	tests := []struct {
+		name        string
+		frontendURL string
+		wantLink    bool
+	}{
+		{
+			name:        "link to the frontend when it is configured",
+			frontendURL: "http://front.test",
+			wantLink:    true,
+		},
+		{
+			name:        "no link when the frontend is not configured",
+			frontendURL: "",
+			wantLink:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &fakeService{visitErr: link.ErrNotFound}
+			router := New(svc, testBaseURL, tt.frontendURL).Routes()
+			req := httptest.NewRequest(http.MethodGet, "/abc1234", nil)
+			req.Header.Set("Accept", browserAccept)
+
+			rec := httptest.NewRecorder()
+
+			router.ServeHTTP(rec, req)
+
+			got := strings.Contains(rec.Body.String(), `href="http://front.test"`)
+
+			if got != tt.wantLink {
+				t.Errorf("home link present = %t, want %t", got, tt.wantLink)
+			}
+		})
+	}
+}
+
+func TestAsset(t *testing.T) {
+	tests := []struct {
+		name       string
+		path       string
+		wantStatus int
+		wantType   string
+	}{
+		{
+			name:       "cyrillic font",
+			path:       "/_assets/manrope-cyrillic.woff2",
+			wantStatus: http.StatusOK,
+			wantType:   "font/woff2",
+		},
+		{
+			name:       "latin font",
+			path:       "/_assets/manrope-latin.woff2",
+			wantStatus: http.StatusOK,
+			wantType:   "font/woff2",
+		},
+		{
+			name:       "unknown file",
+			path:       "/_assets/missing.woff2",
+			wantStatus: http.StatusNotFound,
+			wantType:   "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			router := New(&fakeService{}, testBaseURL, "").Routes()
+			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
+			rec := httptest.NewRecorder()
+
+			router.ServeHTTP(rec, req)
+
+			if rec.Code != tt.wantStatus {
+				t.Errorf("status = %d, want %d", rec.Code, tt.wantStatus)
+			}
+
+			if got := rec.Header().Get("Content-Type"); got != tt.wantType {
+				t.Errorf("Content-Type = %q, want %q", got, tt.wantType)
 			}
 		})
 	}

@@ -20,12 +20,13 @@ type LinkService interface {
 }
 
 type Handler struct {
-	links   LinkService
-	baseURL string
+	links       LinkService
+	baseURL     string
+	frontendURL string
 }
 
-func New(links LinkService, baseURL string) *Handler {
-	return &Handler{links: links, baseURL: baseURL}
+func New(links LinkService, baseURL, frontendURL string) *Handler {
+	return &Handler{links: links, baseURL: baseURL, frontendURL: frontendURL}
 }
 
 func (h *Handler) Routes() *gin.Engine {
@@ -33,6 +34,7 @@ func (h *Handler) Routes() *gin.Engine {
 	router.SetHTMLTemplate(pageTemplates)
 	router.Use(gin.Recovery(), requestLogger(slog.Default()))
 	router.POST("/links", h.createLink)
+	router.GET("/_assets/:name", h.asset)
 	router.GET("/:code", h.redirect)
 
 	return router
@@ -88,7 +90,7 @@ func (h *Handler) redirect(c *gin.Context) {
 	target, err := h.links.Visit(c.Request.Context(), c.Param("code"))
 
 	if err != nil {
-		writeRedirectError(c, err)
+		h.writeRedirectError(c, err)
 
 		return
 	}
