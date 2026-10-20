@@ -1,5 +1,6 @@
 # link-shortener
 
+![CI](https://github.com/emilburganov/link-shortener/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Go](https://img.shields.io/badge/Go-1.27-00ADD8?logo=go&logoColor=white)
 
