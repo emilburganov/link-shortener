@@ -1,14 +1,17 @@
 # link-shortener
 
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Go](https://img.shields.io/badge/Go-1.27-00ADD8?logo=go&logoColor=white)
+
 Сервис коротких ссылок на Go.
 
 Стек: Go, gin, PostgreSQL, pgx, Docker.
 
 ## Возможности
 
-- Короткая ссылка для адреса со схемой http:// или https://
-- Ограничение числа переходов: после лимита ссылка не открывается
-- Лимит соблюдается точно, даже когда по ссылке переходят одновременно
+- [x] Короткая ссылка для адреса со схемой http:// или https://
+- [x] Ограничение числа переходов: после лимита ссылка не открывается
+- [x] Лимит соблюдается точно, даже когда по ссылке переходят одновременно
 
 ## Требования
 
@@ -34,7 +37,13 @@ docker compose down
 
 ## API
 
+Описание в формате OpenAPI: [api/openapi.yaml](api/openapi.yaml).
+
 ### POST /links
+
+> Создать короткую ссылку
+
+#### Request
 
 ```bash
 curl -X POST localhost:8080/links \
@@ -44,13 +53,13 @@ curl -X POST localhost:8080/links \
 
 Поле `max_clicks` необязательное.
 
-Ответ `201`:
+#### Response 201
 
 ```json
 {"code": "5aVcEpZ"}
 ```
 
-Ответ `400` при неверном теле или адресе:
+#### Response 400
 
 ```json
 {"error": "url must be a valid http or https address"}
@@ -58,7 +67,28 @@ curl -X POST localhost:8080/links \
 
 ### GET /{code}
 
-Редирект `302` на исходный адрес. Ответ `404`, если ссылки нет или лимит переходов исчерпан.
+> Перейти по короткой ссылке
+
+#### Request
+
+```bash
+curl -i localhost:8080/5aVcEpZ
+```
+
+#### Response 302
+
+```
+HTTP/1.1 302 Found
+Location: https://example.com/page
+```
+
+#### Response 404
+
+Ссылки нет или лимит переходов исчерпан.
+
+```json
+{"error": "link not found"}
+```
 
 ## Конфигурация
 
@@ -76,20 +106,25 @@ curl -X POST localhost:8080/links \
 ## Структура
 
 ```
-cmd/app            Точка входа
-internal/config    Настройки из окружения
-internal/handler   HTTP-обработчики
-internal/link      Логика ссылок и работа с БД
-migrations         SQL-миграции
+api/openapi.yaml             Описание API
+cmd/app                      Точка входа
+internal/config              Настройки из окружения
+internal/handler             HTTP-обработчики
+internal/link                Логика ссылок
+internal/repository/postgres Работа с PostgreSQL
+migrations                   SQL-миграции
 ```
 
 ## Команды
 
 | Команда | Действие |
 |---|---|
-| `make up` | Собрать и запустить сервис |
+| `make help` | Показать список команд |
+| `make up` | Собрать и запустить сервис в Docker |
 | `make down` | Остановить сервис |
 | `make logs` | Смотреть логи приложения |
+| `make build` | Собрать бинарник в `bin/app` |
+| `make run` | Запустить приложение локально, база в Docker |
 | `make fmt` | Отформатировать код |
 | `make lint` | Запустить линтеры |
 | `make test` | Юнит-тесты |
