@@ -6,12 +6,14 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
 
 type Config struct {
 	Port        string
+	BaseURL     string
 	GinMode     string
 	DatabaseURL string
 }
@@ -53,11 +55,28 @@ func Load() (Config, error) {
 		RawQuery: url.Values{"sslmode": {sslmode}}.Encode(),
 	}
 
+	baseURL, err := parseBaseURL(getenv("BASE_URL", "http://localhost:"+port))
+
+	if err != nil {
+		return Config{}, err
+	}
+
 	return Config{
 		Port:        port,
+		BaseURL:     baseURL,
 		GinMode:     os.Getenv("GIN_MODE"),
 		DatabaseURL: dsn.String(),
 	}, nil
+}
+
+func parseBaseURL(raw string) (string, error) {
+	u, err := url.Parse(raw)
+
+	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
+		return "", fmt.Errorf("BASE_URL must be an http or https address, got %q", raw)
+	}
+
+	return strings.TrimRight(raw, "/"), nil
 }
 
 func getenv(key, fallback string) string {

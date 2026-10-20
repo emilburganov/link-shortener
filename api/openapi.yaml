@@ -131,11 +131,17 @@ components:
       type: object
       required:
         - code
+        - short_url
       properties:
         code:
           type: string
           description: Код короткой ссылки
           example: 5aVcEpZ
+        short_url:
+          type: string
+          format: uri
+          description: Полный адрес короткой ссылки
+          example: http://localhost:8080/5aVcEpZ
 
     Error:
       type: object

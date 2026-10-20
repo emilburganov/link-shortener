@@ -57,7 +57,7 @@ curl -X POST localhost:8080/links \
 #### Response 201
 
 ```json
-{"code": "5aVcEpZ"}
+{"code": "5aVcEpZ", "short_url": "http://localhost:8080/5aVcEpZ"}
 ```
 
 #### Response 400
@@ -104,6 +104,7 @@ Location: https://example.com/page
 | Переменная | Назначение | По умолчанию |
 |---|---|---|
 | `APP_PORT` | Порт сервиса | Обязательная |
+| `BASE_URL` | Публичный адрес сервиса для `short_url` | `http://localhost:` и порт сервиса |
 | `POSTGRES_USER` | Пользователь БД | Обязательная |
 | `POSTGRES_PASSWORD` | Пароль БД | Обязательная |
 | `POSTGRES_DB` | Имя БД | Обязательная |

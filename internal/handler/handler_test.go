@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,6 +15,8 @@ import (
 
 	"github.com/emilburganov/link-shortener/internal/link"
 )
+
+const testBaseURL = "http://short.test"
 
 func init() {
 	gin.SetMode(gin.TestMode)
@@ -41,6 +44,10 @@ func (f *fakeService) Create(_ context.Context, in link.NewLink) (string, error)
 func TestCreateLink(t *testing.T) {
 	five := int64(5)
 	expiresAt := time.Date(2030, 1, 2, 3, 4, 5, 0, time.UTC)
+	created := map[string]string{
+		"code":      "abc1234",
+		"short_url": testBaseURL + "/abc1234",
+	}
 
 	tests := []struct {
 		name       string
@@ -56,7 +63,7 @@ func TestCreateLink(t *testing.T) {
 			body:       `{"url":"https://example.com"}`,
 			svc:        &fakeService{code: "abc1234"},
 			wantStatus: http.StatusCreated,
-			wantBody:   map[string]string{"code": "abc1234"},
+			wantBody:   created,
 			wantCalls:  1,
 			wantNew:    link.NewLink{URL: "https://example.com"},
 		},
@@ -65,7 +72,7 @@ func TestCreateLink(t *testing.T) {
 			body:       `{"url":"https://example.com","max_clicks":5}`,
 			svc:        &fakeService{code: "abc1234"},
 			wantStatus: http.StatusCreated,
-			wantBody:   map[string]string{"code": "abc1234"},
+			wantBody:   created,
 			wantCalls:  1,
 			wantNew:    link.NewLink{URL: "https://example.com", MaxClicks: &five},
 		},
@@ -74,7 +81,7 @@ func TestCreateLink(t *testing.T) {
 			body:       `{"url":"https://example.com","expires_at":"2030-01-02T03:04:05Z"}`,
 			svc:        &fakeService{code: "abc1234"},
 			wantStatus: http.StatusCreated,
-			wantBody:   map[string]string{"code": "abc1234"},
+			wantBody:   created,
 			wantCalls:  1,
 			wantNew:    link.NewLink{URL: "https://example.com", ExpiresAt: &expiresAt},
 		},
@@ -153,7 +160,7 @@ func TestCreateLink(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			router := New(tt.svc).Routes()
+			router := New(tt.svc, testBaseURL).Routes()
 			req := httptest.NewRequest(http.MethodPost, "/links", strings.NewReader(tt.body))
 			req.Header.Set("Content-Type", "application/json")
 			rec := httptest.NewRecorder()
@@ -170,8 +177,7 @@ func TestCreateLink(t *testing.T) {
 				t.Fatalf("response is not a json object: %q", rec.Body.String())
 			}
 
-			if len(got) != len(tt.wantBody) || got["code"] != tt.wantBody["code"] ||
-				got["error"] != tt.wantBody["error"] {
+			if !maps.Equal(got, tt.wantBody) {
 				t.Errorf("body = %v, want %v", got, tt.wantBody)
 			}
 
@@ -251,7 +257,7 @@ func TestRedirect(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			router := New(tt.svc).Routes()
+			router := New(tt.svc, testBaseURL).Routes()
 			req := httptest.NewRequest(http.MethodGet, "/abc1234", nil)
 			rec := httptest.NewRecorder()
 

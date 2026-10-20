@@ -20,11 +20,12 @@ type LinkService interface {
 }
 
 type Handler struct {
-	links LinkService
+	links   LinkService
+	baseURL string
 }
 
-func New(links LinkService) *Handler {
-	return &Handler{links: links}
+func New(links LinkService, baseURL string) *Handler {
+	return &Handler{links: links, baseURL: baseURL}
 }
 
 func (h *Handler) Routes() *gin.Engine {
@@ -43,7 +44,8 @@ type createLinkRequest struct {
 }
 
 type createLinkResponse struct {
-	Code string `json:"code"`
+	Code     string `json:"code"`
+	ShortURL string `json:"short_url"`
 }
 
 type errorResponse struct {
@@ -77,7 +79,10 @@ func (h *Handler) createLink(c *gin.Context) {
 		_ = c.Error(err)
 		c.JSON(http.StatusInternalServerError, errorResponse{Error: "internal error"})
 	default:
-		c.JSON(http.StatusCreated, createLinkResponse{Code: code})
+		c.JSON(http.StatusCreated, createLinkResponse{
+			Code:     code,
+			ShortURL: h.baseURL + "/" + code,
+		})
 	}
 }
 
