@@ -15,7 +15,6 @@
         --muted: #64748b;
         --line: #f1f5f9;
         --brand: #0d9488;
-        --brand-soft: #f0fdfa;
       }
 
       * {
@@ -98,16 +97,6 @@
         z-index: 1;
       }
 
-      .status {
-        padding: 6px 12px;
-        border: 1px solid #ccfbf1;
-        border-radius: 9999px;
-        background: var(--brand-soft);
-        color: #0f766e;
-        font-size: 0.75rem;
-        font-weight: 600;
-      }
-
       .code {
         color: var(--brand);
         font-size: clamp(5rem, 22vw, 9rem);
@@ -155,7 +144,6 @@
     </header>
 
     <main>
-      <span class="status">Ошибка {{.Status}}</span>
       <div class="code" aria-hidden="true">{{.Status}}</div>
       <h1>{{.Heading}}</h1>
       <p>{{.Text}}</p>
