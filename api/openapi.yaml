@@ -1,0 +1,130 @@
+openapi: 3.0.3
+
+info:
+  title: link-shortener
+  version: 1.0.0
+  description: Сервис коротких ссылок
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: /
+
+security: []
+
+paths:
+  /links:
+    post:
+      operationId: createLink
+      summary: Создать короткую ссылку
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateLinkRequest"
+      responses:
+        "201":
+          description: Ссылка создана
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateLinkResponse"
+        "400":
+          description: Неверное тело запроса, адрес или лимит переходов
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                invalidBody:
+                  value:
+                    error: invalid request body
+                invalidUrl:
+                  value:
+                    error: url must be a valid http or https address
+                invalidMaxClicks:
+                  value:
+                    error: max_clicks must be positive
+        "500":
+          description: Внутренняя ошибка
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /{code}:
+    get:
+      operationId: openLink
+      summary: Перейти по короткой ссылке
+      description: Засчитывает переход и перенаправляет на исходный адрес
+      parameters:
+        - name: code
+          in: path
+          required: true
+          description: Код короткой ссылки
+          schema:
+            type: string
+            example: 5aVcEpZ
+      responses:
+        "302":
+          description: Перенаправление на исходный адрес
+          headers:
+            Location:
+              description: Исходный адрес
+              schema:
+                type: string
+                format: uri
+        "404":
+          description: Ссылки нет или лимит переходов исчерпан
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: link not found
+        "500":
+          description: Внутренняя ошибка
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+components:
+  schemas:
+    CreateLinkRequest:
+      type: object
+      required:
+        - url
+      properties:
+        url:
+          type: string
+          format: uri
+          maxLength: 2048
+          description: Исходный адрес со схемой http:// или https://
+          example: https://example.com/page
+        max_clicks:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Максимальное число переходов, без поля переходы не ограничены
+          example: 5
+
+    CreateLinkResponse:
+      type: object
+      required:
+        - code
+      properties:
+        code:
+          type: string
+          description: Код короткой ссылки
+          example: 5aVcEpZ
+
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
