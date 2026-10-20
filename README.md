@@ -24,6 +24,13 @@
 |---|---|
 | ![Ссылка не найдена](docs/not-found.png) | ![Ссылка больше не действует](docs/gone.png) |
 
+На телефоне:
+
+<p>
+  <img src="docs/mobile-not-found.png" width="260" alt="Ссылка не найдена на телефоне">
+  <img src="docs/mobile-gone.png" width="260" alt="Ссылка больше не действует на телефоне">
+</p>
+
 ## Требования
 
 - Docker 27.4
